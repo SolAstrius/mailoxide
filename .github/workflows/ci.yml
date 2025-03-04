@@ -1,0 +1,85 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  nix-build-and-test:
+    name: Build and Test with Nix
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v4
+    
+    - name: Setup Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
+
+    - name: Enter dev shell and run tests
+      run: |
+        nix develop --command bash -c "cargo test --verbose"
+        nix develop --command bash -c "cargo clippy -- -D warnings"
+    
+    - name: Build default target
+      run: nix build .#mailoxide
+    
+    - name: Verify binary exists
+      run: test -x ./result/bin/mailoxide
+    
+    - name: Build for Windows
+      run: nix build .#mailoxide_windows
+    
+    - name: Verify Windows binary exists
+      run: test -f ./result/bin/mailoxide.exe
+    
+    - name: Build for ARM64 Linux
+      run: nix build .#mailoxide_aarch64_linux
+    
+    - name: Verify ARM64 binary exists
+      run: test -x ./result/bin/mailoxide
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [nix-build-and-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Nix
+      uses: DeterminateSystems/nix-installer-action@v4
+    
+    - name: Setup Nix cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
+    
+    - name: Build all targets
+      run: |
+        nix build .#mailoxide
+        nix build .#mailoxide_windows
+        nix build .#mailoxide_aarch64_linux
+        
+        mkdir -p artifacts
+        cp -L ./result/bin/mailoxide artifacts/mailoxide-linux-x86_64
+        cp -L ./result/bin/mailoxide.exe artifacts/mailoxide-windows-x86_64.exe
+        cp -L ./result/bin/mailoxide artifacts/mailoxide-linux-aarch64
+        
+        cd artifacts
+        chmod +x mailoxide-linux-x86_64 mailoxide-linux-aarch64
+        zip -r mailoxide-linux-x86_64.zip mailoxide-linux-x86_64
+        zip -r mailoxide-windows-x86_64.zip mailoxide-windows-x86_64.exe
+        zip -r mailoxide-linux-aarch64.zip mailoxide-linux-aarch64
+    
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/mailoxide-linux-x86_64.zip
+          artifacts/mailoxide-windows-x86_64.zip
+          artifacts/mailoxide-linux-aarch64.zip
+        generate_release_notes: true
