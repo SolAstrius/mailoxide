@@ -16,8 +16,30 @@
         };
 
         rustToolchain = pkgs.rust-bin.stable.latest.default;
+        
+        crateNameFromCargoToml = "mailoxide"; # Should match your package name in Cargo.toml
       in
       {
+        packages = {
+          ${crateNameFromCargoToml} = pkgs.rustPlatform.buildRustPackage {
+            pname = crateNameFromCargoToml;
+            version = "0.1.0";
+            src = ./.;
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+            
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            buildInputs = [ pkgs.openssl ];
+          };
+          
+          default = self.packages.${system}.${crateNameFromCargoToml};
+        };
+        
+        apps.default = flake-utils.lib.mkApp {
+          drv = self.packages.${system}.default;
+        };
+        
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             rustToolchain
