@@ -238,7 +238,7 @@ fn main() -> Result<()> {
         create_mbox_from_multiple_emls(&eml_path, &output_path)?;
     } else if eml_path.is_file() {
         // Check if it's an .eml file
-        if eml_path.extension().map_or(false, |ext| ext == "eml") {
+        if eml_path.extension().is_some_and(|ext| ext == "eml") {
             create_mbox_from_single_eml(&eml_path, &output_path)?;
         } else {
             return Err(MailoxideError::InvalidPath(
