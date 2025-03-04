@@ -13,7 +13,7 @@ struct Args {
     input: String,
 
     /// Destination folder of the final mbox file
-    #[arg(default_value = "input")]
+    #[arg(default_value_t = String::from("."))]
     output: String,
 }
 
@@ -220,8 +220,13 @@ fn main() -> Result<()> {
     // Check input file
     let eml_path = path_check(&args.input);
     
-    // Check output
-    let output_path = path_check(&args.output);
+    // Check if output is the default value ("input") and matches the input path
+    let output_path = if args.output == "input" && args.input == "input" {
+        // Use current directory instead to avoid confusion
+        path_check(".")
+    } else {
+        path_check(&args.output)
+    };
     
     if eml_path.is_dir() {
         // If it's a folder, process multiple files
@@ -229,6 +234,10 @@ fn main() -> Result<()> {
     } else if eml_path.is_file() {
         // Check if it's an .eml file
         if eml_path.extension().map_or(false, |ext| ext == "eml") {
+            // Ensure output directory exists
+            if !output_path.exists() {
+                fs::create_dir_all(&output_path)?;
+            }
             create_mbox_from_single_eml(&eml_path, &output_path)?;
         } else {
             return Err(MailoxideError::InvalidPath(
@@ -256,6 +265,6 @@ fn print_banner() {
                                                                                     
                                                                                     
  Convert your eml files into an mbox folder.
- https://github.com/nick88msn/eml2mbox
+ https://github.com/SolAstrius/mailoxide
     "#);
 }
